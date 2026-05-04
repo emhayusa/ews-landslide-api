@@ -41,11 +41,12 @@ func (s *authService) Login(username, password string) (string, error) {
 
 	// Generate JWT
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub":   user.Username,
-		"name":  user.FullName,
-		"email": user.Email,
-		"role":  user.Role,
-		"exp":   time.Now().Add(time.Hour * 72).Unix(),
+		"sub":     user.Username,
+		"user_id": user.ID,
+		"name":    user.FullName,
+		"email":   user.Email,
+		"role":    user.Role,
+		"exp":     time.Now().Add(time.Hour * 72).Unix(),
 	})
 
 	return token.SignedString([]byte(s.cfg.JWTSecret))

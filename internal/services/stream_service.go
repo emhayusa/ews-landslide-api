@@ -12,6 +12,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/gofiber/websocket/v2"
+	gorilla "github.com/gorilla/websocket"
 )
 
 type StreamService struct {
@@ -19,28 +20,35 @@ type StreamService struct {
 	mqtt           mqtt.Client
 	clients        map[*websocket.Conn]bool
 	mu             sync.Mutex
-	monitoringRepo repositories.MonitoringRepository
-	stationRepo    repositories.StationRepository
+	monitoringRepo  repositories.MonitoringRepository
+	stationRepo     repositories.StationRepository
+	deformationRepo repositories.DeformationRepository
 }
 
 type MQTTMessage struct {
 	TS     string `json:"ts"`
 	Params struct {
-		Bucket    float64 `json:"bucket"`
-		Battery   float64 `json:"Baterai"`
-		Solar     float64 `json:"Solar"`
-		Alarm     int     `json:"alarm"`
-		MaxBucket float64 `json:"max_bucket"`
-		Deformasi float64 `json:"deformasi"`
+		CurahHujanDaily  float64 `json:"curah_hujan_daily"`
+		Baterai          float64 `json:"Baterai"`
+		Solar            float64 `json:"Solar"`
+		Alarm            int     `json:"alarm"`
+		CurahHujanHourly float64 `json:"curah_hujan_hourly"`
 	} `json:"params"`
 }
 
-func NewStreamService(cfg *config.Config, mRepo repositories.MonitoringRepository, sRepo repositories.StationRepository) *StreamService {
+type DeformationMessage struct {
+	TS       string  `json:"ts"`
+	Distance float64 `json:"distance"`
+	Offset   float64 `json:"offset"`
+}
+
+func NewStreamService(cfg *config.Config, mRepo repositories.MonitoringRepository, sRepo repositories.StationRepository, dRepo repositories.DeformationRepository) *StreamService {
 	s := &StreamService{
-		config:         cfg,
-		clients:        make(map[*websocket.Conn]bool),
-		monitoringRepo: mRepo,
-		stationRepo:    sRepo,
+		config:          cfg,
+		clients:         make(map[*websocket.Conn]bool),
+		monitoringRepo:  mRepo,
+		stationRepo:     sRepo,
+		deformationRepo: dRepo,
 	}
 	s.initMQTT()
 	return s
@@ -84,7 +92,7 @@ func (s *StreamService) onMessageReceived(client mqtt.Client, msg mqtt.Message) 
 	var targetStationID uint = 0
 	stations, _ := s.stationRepo.FindAll()
 	for _, st := range stations {
-		if st.Name == "Rover Ungaran" || st.StationID == "UG-001" {
+		if st.Name == "Rover Ungaran" || st.StationID == "UG-001" || st.StationID == "UNGR" {
 			targetStationID = st.ID
 			break
 		}
@@ -94,17 +102,22 @@ func (s *StreamService) onMessageReceived(client mqtt.Client, msg mqtt.Message) 
 	}
 
 	if targetStationID != 0 {
-		// 2. Save to database
+		// 2. Parse Timestamp
+		parsedTS, err := time.Parse("2006/01/02 15:04:05", mqttData.TS)
+		if err != nil {
+			parsedTS = time.Now()
+		}
+
+		// 3. Save to database
 		monitoring := &models.Monitoring{
-			StationReferID: targetStationID,
-			Timestamp:      time.Now(), // Or parse mqttData.TS if needed
-			Bucket:     mqttData.Params.Bucket,
-			Battery:    mqttData.Params.Battery,
-			Solar:      mqttData.Params.Solar,
-			Alarm:      mqttData.Params.Alarm,
-			MaxBucket:  mqttData.Params.MaxBucket,
-			Deformasi:  mqttData.Params.Deformasi,
-			RawPayload: string(msg.Payload()),
+			StationReferID:   targetStationID,
+			Timestamp:        parsedTS,
+			CurahHujanDaily:  mqttData.Params.CurahHujanDaily,
+			Baterai:          mqttData.Params.Baterai,
+			Solar:            mqttData.Params.Solar,
+			Alarm:            mqttData.Params.Alarm,
+			CurahHujanHourly: mqttData.Params.CurahHujanHourly,
+			RawPayload:       string(msg.Payload()),
 		}
 
 		if err := s.monitoringRepo.Create(monitoring); err != nil {
@@ -116,6 +129,7 @@ func (s *StreamService) onMessageReceived(client mqtt.Client, msg mqtt.Message) 
 
 	// 3. Broadcast to WS with station info
 	broadcastData := map[string]interface{}{
+		"type":         "weather",
 		"id":           targetStationID,
 		"station_id":   "", // Code string
 		"station_name": "Rover Ungaran", // Default or found name
@@ -165,4 +179,67 @@ func (s *StreamService) Broadcast(data interface{}) {
 			delete(s.clients, client)
 		}
 	}
+}
+
+func (s *StreamService) StartDeformationStream(ref, obs string) {
+	url := fmt.Sprintf("ws://36.92.41.75:8000/ws/data?ref=%s&obs=%s", ref, obs)
+	log.Printf("[WS-Client] Connecting to %s\n", url)
+
+	go func() {
+		for {
+			c, _, err := gorilla.DefaultDialer.Dial(url, nil)
+			if err != nil {
+				log.Printf("[WS-Client] Dial error: %v, retrying in 5s...\n", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+			log.Printf("[WS-Client] Connected to %s\n", url)
+
+			for {
+				_, message, err := c.ReadMessage()
+				if err != nil {
+					log.Printf("[WS-Client] Read error: %v\n", err)
+					break
+				}
+
+				var data DeformationMessage
+				if err := json.Unmarshal(message, &data); err != nil {
+					log.Printf("[WS-Client] JSON Unmarshal error: %v\n", err)
+					continue
+				}
+
+				// Parse TS
+				parsedTS, err := time.Parse(time.RFC3339, data.TS)
+				if err != nil {
+					parsedTS = time.Now()
+				}
+
+				// Save to database
+				deformation := &models.Deformation{
+					TS:       parsedTS,
+					Distance: data.Distance,
+					Offset:   data.Offset,
+					RefCode:  ref,
+					ObsCode:  obs,
+				}
+
+				if err := s.deformationRepo.Create(deformation); err != nil {
+					log.Printf("[DB] Failed to save deformation data: %v\n", err)
+				}
+
+				// Broadcast to internal clients
+				s.Broadcast(map[string]interface{}{
+					"type":       "deformation",
+					"station_id": obs,
+					"ref_code":   ref,
+					"data":       data,
+				})
+			}
+
+			c.Close()
+			log.Println("[WS-Client] Connection closed, retrying in 5s...")
+			time.Sleep(5 * time.Second)
+		}
+	}()
 }

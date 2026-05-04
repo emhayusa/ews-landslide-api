@@ -47,17 +47,27 @@ func main() {
 	userRepo := repositories.NewUserRepository(database.DB)
 	stationRepo := repositories.NewStationRepository(database.DB)
 	monitoringRepo := repositories.NewMonitoringRepository(database.DB)
+	baseStationRepo := repositories.NewBaseStationRepository(database.DB)
+	siteRepo := repositories.NewSiteRepository(database.DB)
+	deformationRepo := repositories.NewDeformationRepository(database.DB)
 
 	// Services
 	authSvc := services.NewAuthService(cfg, userRepo)
 	userSvc := services.NewUserService(userRepo)
 	stationSvc := services.NewStationService(stationRepo)
-	streamSvc := services.NewStreamService(cfg, monitoringRepo, stationRepo)
+	baseStationSvc := services.NewBaseStationService(baseStationRepo)
+	siteSvc := services.NewSiteService(siteRepo)
+	streamSvc := services.NewStreamService(cfg, monitoringRepo, stationRepo, deformationRepo)
+	
+	// Start Deformation Stream
+	streamSvc.StartDeformationStream("CSEM", "UNGR")
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authSvc, userRepo)
 	userHandler := handlers.NewUserHandler(userSvc)
 	stationHandler := handlers.NewStationHandler(stationSvc)
+	baseStationHandler := handlers.NewBaseStationHandler(baseStationSvc)
+	siteHandler := handlers.NewSiteHandler(siteSvc)
 	streamHandler := handlers.NewStreamHandler(streamSvc)
 
 	app := fiber.New(fiber.Config{
@@ -74,7 +84,7 @@ func main() {
 
 	// Setup Routes
 	api := app.Group("/api")
-	v1.SetupRoutes(api, cfg, authSvc, authHandler, userHandler, stationHandler, streamHandler)
+	v1.SetupRoutes(api, cfg, authSvc, authHandler, userHandler, stationHandler, streamHandler, baseStationHandler, siteHandler)
 
 	// Swagger UI
 	app.Get("/swagger/*", swagger.HandlerDefault)

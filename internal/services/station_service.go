@@ -7,7 +7,7 @@ import (
 )
 
 type StationService interface {
-	GetAll() ([]dto.StationResponse, error)
+	GetAll(userID uint, role string) ([]dto.StationResponse, error)
 	GetByID(id string) (dto.StationResponse, error)
 	Create(req *dto.StationRequest) (dto.StationResponse, error)
 	Update(id string, req *dto.StationRequest) (dto.StationResponse, error)
@@ -22,24 +22,23 @@ func NewStationService(repo repositories.StationRepository) StationService {
 	return &stationService{repo}
 }
 
-func (s *stationService) GetAll() ([]dto.StationResponse, error) {
-	stations, err := s.repo.FindAll()
+func (s *stationService) GetAll(userID uint, role string) ([]dto.StationResponse, error) {
+	var stations []models.Station
+	var err error
+
+	if role == "mitra" {
+		stations, err = s.repo.FindByUser(userID)
+	} else {
+		stations, err = s.repo.FindAll()
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	res := []dto.StationResponse{}
 	for _, st := range stations {
-		res = append(res, dto.StationResponse{
-			ID:           st.ID,
-			StationID:    st.StationID,
-			Name:         st.Name,
-			Latitude:     st.Latitude,
-			Longitude:    st.Longitude,
-			Location:     st.Location,
-			Status:       st.Status,
-			HardwareType: st.HardwareType,
-		})
+		res = append(res, s.mapToResponse(st))
 	}
 	return res, nil
 }
@@ -49,16 +48,7 @@ func (s *stationService) GetByID(id string) (dto.StationResponse, error) {
 	if err != nil {
 		return dto.StationResponse{}, err
 	}
-	return dto.StationResponse{
-		ID:           st.ID,
-		StationID:    st.StationID,
-		Name:         st.Name,
-		Latitude:     st.Latitude,
-		Longitude:    st.Longitude,
-		Location:     st.Location,
-		Status:       st.Status,
-		HardwareType: st.HardwareType,
-	}, nil
+	return s.mapToResponse(st), nil
 }
 
 func (s *stationService) Create(req *dto.StationRequest) (dto.StationResponse, error) {
@@ -69,24 +59,18 @@ func (s *stationService) Create(req *dto.StationRequest) (dto.StationResponse, e
 		Longitude:    req.Longitude,
 		Location:     req.Location,
 		Description:  req.Description,
-		Status:       req.Status,
-		HardwareType: req.HardwareType,
+		Status:          req.Status,
+		BaseStationID:   req.BaseStationID,
+		InitialDistance: req.InitialDistance,
+		URLStreaming:    req.URLStreaming,
+		SiteID:          req.SiteID,
 	}
 
 	if err := s.repo.Create(station); err != nil {
 		return dto.StationResponse{}, err
 	}
 
-	return dto.StationResponse{
-		ID:           station.ID,
-		StationID:    station.StationID,
-		Name:         station.Name,
-		Latitude:     station.Latitude,
-		Longitude:    station.Longitude,
-		Location:     station.Location,
-		Status:       station.Status,
-		HardwareType: station.HardwareType,
-	}, nil
+	return s.mapToResponse(*station), nil
 }
 
 func (s *stationService) Update(id string, req *dto.StationRequest) (dto.StationResponse, error) {
@@ -102,22 +86,46 @@ func (s *stationService) Update(id string, req *dto.StationRequest) (dto.Station
 	station.Location = req.Location
 	station.Description = req.Description
 	station.Status = req.Status
-	station.HardwareType = req.HardwareType
+	station.BaseStationID = req.BaseStationID
+	station.InitialDistance = req.InitialDistance
+	station.URLStreaming = req.URLStreaming
+	station.SiteID = req.SiteID
 
 	if err := s.repo.Update(&station); err != nil {
 		return dto.StationResponse{}, err
 	}
 
-	return dto.StationResponse{
-		ID:           station.ID,
-		StationID:    station.StationID,
-		Name:         station.Name,
-		Latitude:     station.Latitude,
-		Longitude:    station.Longitude,
-		Location:     station.Location,
-		Status:       station.Status,
-		HardwareType: station.HardwareType,
-	}, nil
+	return s.mapToResponse(station), nil
+}
+
+func (s *stationService) mapToResponse(st models.Station) dto.StationResponse {
+	res := dto.StationResponse{
+		ID:              st.ID,
+		StationID:       st.StationID,
+		Name:            st.Name,
+		Latitude:        st.Latitude,
+		Longitude:       st.Longitude,
+		Location:        st.Location,
+		Status:          st.Status,
+		BaseStationID:   st.BaseStationID,
+		InitialDistance: st.InitialDistance,
+		URLStreaming:    st.URLStreaming,
+		SiteID:          st.SiteID,
+	}
+
+	if st.BaseStation != nil {
+		res.BaseStation = &dto.BaseStationResponse{
+			ID:     st.BaseStation.ID,
+			UUID:   st.BaseStation.UUID.String(),
+			Kode:   st.BaseStation.Kode,
+			Nama:   st.BaseStation.Nama,
+			Lokasi: st.BaseStation.Lokasi,
+			Long:   st.BaseStation.Long,
+			Lat:    st.BaseStation.Lat,
+		}
+	}
+
+	return res
 }
 
 func (s *stationService) Delete(id string) error {

@@ -10,7 +10,7 @@ import (
 	"github.com/gofiber/websocket/v2"
 )
 
-func SetupRoutes(api fiber.Router, cfg *config.Config, authSvc services.AuthService, authHdl *handlers.AuthHandler, userHdl *handlers.UserHandler, stationHdl *handlers.StationHandler, streamHdl *handlers.StreamHandler) {
+func SetupRoutes(api fiber.Router, cfg *config.Config, authSvc services.AuthService, authHdl *handlers.AuthHandler, userHdl *handlers.UserHandler, stationHdl *handlers.StationHandler, streamHdl *handlers.StreamHandler, baseStationHdl *handlers.BaseStationHandler, siteHdl *handlers.SiteHandler) {
 	v1 := api.Group("/v1")
 
 	// WebSocket Streaming (Public or Protected depending on requirement, here public for testing)
@@ -52,4 +52,20 @@ func SetupRoutes(api fiber.Router, cfg *config.Config, authSvc services.AuthServ
 	stations.Get("/:id", stationHdl.GetStation)
 	stations.Put("/:id", stationHdl.UpdateStation, middleware.RoleChecker("admin"))
 	stations.Delete("/:id", stationHdl.DeleteStation, middleware.RoleChecker("admin"))
+
+	// Base Station routes
+	baseStations := v1.Group("/base-stations")
+	baseStations.Get("/", baseStationHdl.GetBaseStations)
+	baseStations.Post("/", baseStationHdl.CreateBaseStation, middleware.RoleChecker("admin"))
+	baseStations.Get("/:id", baseStationHdl.GetBaseStation)
+	baseStations.Put("/:id", baseStationHdl.UpdateBaseStation, middleware.RoleChecker("admin"))
+	baseStations.Delete("/:id", baseStationHdl.DeleteBaseStation, middleware.RoleChecker("admin"))
+
+	// Site routes
+	sites := v1.Group("/sites")
+	sites.Get("/", siteHdl.GetSites)
+	sites.Post("/", siteHdl.CreateSite, middleware.RoleChecker("admin"))
+	sites.Get("/:id", siteHdl.GetSite)
+	sites.Put("/:id", siteHdl.UpdateSite, middleware.RoleChecker("admin"))
+	sites.Delete("/:id", siteHdl.DeleteSite, middleware.RoleChecker("admin"))
 }

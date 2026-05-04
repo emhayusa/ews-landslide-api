@@ -33,13 +33,7 @@ func (s *userService) GetAll() ([]dto.UserResponse, error) {
 
 	var res []dto.UserResponse
 	for _, u := range users {
-		res = append(res, dto.UserResponse{
-			Username:  u.Username,
-			Email:     u.Email,
-			FullName:  u.FullName,
-			Role:      u.Role,
-			CreatedAt: u.CreatedAt,
-		})
+		res = append(res, s.mapToResponse(u))
 	}
 	return res, nil
 }
@@ -49,13 +43,7 @@ func (s *userService) GetByUsername(username string) (dto.UserResponse, error) {
 	if err != nil {
 		return dto.UserResponse{}, err
 	}
-	return dto.UserResponse{
-		Username:  u.Username,
-		Email:     u.Email,
-		FullName:  u.FullName,
-		Role:      u.Role,
-		CreatedAt: u.CreatedAt,
-	}, nil
+	return s.mapToResponse(u), nil
 }
 
 func (s *userService) Create(req *dto.UserRequest) (dto.UserResponse, error) {
@@ -65,25 +53,25 @@ func (s *userService) Create(req *dto.UserRequest) (dto.UserResponse, error) {
 		hashedPassword = string(hashed)
 	}
 
+	sites := []models.Site{}
+	for _, id := range req.SiteIDs {
+		sites = append(sites, models.Site{ID: id})
+	}
+
 	user := &models.User{
 		Username: req.Username,
 		Email:    req.Email,
 		Password: hashedPassword,
 		FullName: req.FullName,
 		Role:     req.Role,
+		Sites:    sites,
 	}
 
 	if err := s.repo.Create(user); err != nil {
 		return dto.UserResponse{}, err
 	}
 
-	return dto.UserResponse{
-		Username:  user.Username,
-		Email:     user.Email,
-		FullName:  user.FullName,
-		Role:      user.Role,
-		CreatedAt: user.CreatedAt,
-	}, nil
+	return s.mapToResponse(*user), nil
 }
 
 func (s *userService) Update(username string, req *dto.UserRequest) (dto.UserResponse, error) {
@@ -102,17 +90,18 @@ func (s *userService) Update(username string, req *dto.UserRequest) (dto.UserRes
 		user.Password = string(hashed)
 	}
 
+	// Update Sites Association
+	sites := []models.Site{}
+	for _, id := range req.SiteIDs {
+		sites = append(sites, models.Site{ID: id})
+	}
+	user.Sites = sites
+
 	if err := s.repo.Update(&user); err != nil {
 		return dto.UserResponse{}, err
 	}
 
-	return dto.UserResponse{
-		Username:  user.Username,
-		Email:     user.Email,
-		FullName:  user.FullName,
-		Role:      user.Role,
-		CreatedAt: user.CreatedAt,
-	}, nil
+	return s.mapToResponse(user), nil
 }
 
 func (s *userService) Delete(username string) error {
@@ -121,4 +110,25 @@ func (s *userService) Delete(username string) error {
 		return err
 	}
 	return s.repo.Delete(fmt.Sprintf("%d", user.ID))
+}
+
+func (s *userService) mapToResponse(u models.User) dto.UserResponse {
+	sites := []dto.SiteResponse{}
+	for _, site := range u.Sites {
+		sites = append(sites, dto.SiteResponse{
+			ID:         site.ID,
+			Nama:       site.Nama,
+			Lokasi:     site.Lokasi,
+			Keterangan: site.Keterangan,
+		})
+	}
+
+	return dto.UserResponse{
+		Username:  u.Username,
+		Email:     u.Email,
+		FullName:  u.FullName,
+		Role:      u.Role,
+		Sites:     sites,
+		CreatedAt: u.CreatedAt,
+	}
 }

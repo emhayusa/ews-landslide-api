@@ -28,8 +28,37 @@ func AuthMiddleware(authSvc services.AuthService) fiber.Handler {
 		// Store claims in context
 		c.Locals("user", claims)
 
-		// For Local Auth, role might be directly in claims
-		// For Keycloak, it's typically in realm_access.roles
+		// Extract user_id
+		var userID uint
+		if uid, ok := claims["user_id"].(float64); ok {
+			userID = uint(uid)
+		} else if uid, ok := claims["user_id"].(uint); ok {
+			userID = uid
+		}
+		c.Locals("user_id", userID)
+
+		// Extract role
+		role := ""
+		if r, ok := claims["role"].(string); ok {
+			role = r
+		} else if realmAccess, ok := claims["realm_access"].(map[string]interface{}); ok {
+			// Keycloak fallback
+			if rRoles, ok := realmAccess["roles"].([]interface{}); ok {
+				for _, r := range rRoles {
+					roleStr := r.(string)
+					// Prioritize admin or operator roles if found
+					if roleStr == "admin" || roleStr == "operator" {
+						role = roleStr
+						break
+					}
+					if role == "" {
+						role = roleStr
+					}
+				}
+			}
+		}
+		c.Locals("role", role)
+
 		return c.Next()
 	}
 }

@@ -24,7 +24,10 @@ func NewStationHandler(svc services.StationService) *StationHandler {
 // @Success 200 {array} dto.StationResponse
 // @Router /v1/stations [get]
 func (h *StationHandler) GetStations(c *fiber.Ctx) error {
-	stations, err := h.svc.GetAll()
+	userID := c.Locals("user_id").(uint)
+	role := c.Locals("role").(string)
+
+	stations, err := h.svc.GetAll(userID, role)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}

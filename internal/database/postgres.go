@@ -25,7 +25,7 @@ func ConnectDB(cfg *config.Config) {
 	fmt.Println("Connected to PostgreSQL")
 
 	// Auto migration
-	err = db.AutoMigrate(&models.User{}, &models.Station{}, &models.Monitoring{})
+	err = db.AutoMigrate(&models.Site{}, &models.User{}, &models.BaseStation{}, &models.Station{}, &models.Monitoring{}, &models.Deformation{})
 	if err != nil {
 		log.Fatal("Failed to migrate database: ", err)
 	}
@@ -45,6 +45,9 @@ func ConnectDB(cfg *config.Config) {
 		db.Create(&admin)
 		fmt.Println("Seeded default admin user: kelvin / password123")
 	}
+
+	// Seed Operational Data
+	SeedData(db)
 
 	DB = db
 }
