@@ -59,12 +59,13 @@ func (s *userService) Create(req *dto.UserRequest) (dto.UserResponse, error) {
 	}
 
 	user := &models.User{
-		Username: req.Username,
-		Email:    req.Email,
-		Password: hashedPassword,
-		FullName: req.FullName,
-		Role:     req.Role,
-		Sites:    sites,
+		Username:    req.Username,
+		Email:       req.Email,
+		Password:    hashedPassword,
+		FullName:    req.FullName,
+		Role:        req.Role,
+		PhoneNumber: req.PhoneNumber,
+		Sites:       sites,
 	}
 
 	if err := s.repo.Create(user); err != nil {
@@ -84,6 +85,7 @@ func (s *userService) Update(username string, req *dto.UserRequest) (dto.UserRes
 	user.Email = req.Email
 	user.FullName = req.FullName
 	user.Role = req.Role
+	user.PhoneNumber = req.PhoneNumber
 
 	if req.Password != "" {
 		hashed, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -124,11 +126,12 @@ func (s *userService) mapToResponse(u models.User) dto.UserResponse {
 	}
 
 	return dto.UserResponse{
-		Username:  u.Username,
-		Email:     u.Email,
-		FullName:  u.FullName,
-		Role:      u.Role,
-		Sites:     sites,
-		CreatedAt: u.CreatedAt,
+		Username:    u.Username,
+		Email:       u.Email,
+		FullName:    u.FullName,
+		Role:        u.Role,
+		PhoneNumber: u.PhoneNumber,
+		Sites:       sites,
+		CreatedAt:   u.CreatedAt,
 	}
 }

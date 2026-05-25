@@ -5,7 +5,6 @@ import (
 	"big-devops-api/internal/services"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v4"
 )
 
 type SiteHandler struct {
@@ -25,8 +24,8 @@ func NewSiteHandler(svc services.SiteService) *SiteHandler {
 // @Success 200 {array} dto.SiteResponse
 // @Router /v1/sites [get]
 func (h *SiteHandler) GetSites(c *fiber.Ctx) error {
-	claims := c.Locals("user").(jwt.MapClaims)
-	userID, role := h.getUserInfo(claims)
+	userID := c.Locals("user_id").(uint)
+	role := c.Locals("role").(string)
 
 	sites, err := h.svc.GetAll(userID, role)
 	if err != nil {
@@ -70,42 +69,14 @@ func (h *SiteHandler) CreateSite(c *fiber.Ctx) error {
 // @Router /v1/sites/{id} [get]
 func (h *SiteHandler) GetSite(c *fiber.Ctx) error {
 	id := c.Params("id")
-	claims := c.Locals("user").(jwt.MapClaims)
-	userID, role := h.getUserInfo(claims)
+	userID := c.Locals("user_id").(uint)
+	role := c.Locals("role").(string)
 
 	site, err := h.svc.GetByID(id, userID, role)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Site not found or access denied"})
 	}
 	return c.JSON(site)
-}
-
-func (h *SiteHandler) getUserInfo(claims jwt.MapClaims) (uint, string) {
-	var userID uint
-	if id, ok := claims["user_id"].(float64); ok {
-		userID = uint(id)
-	}
-
-	role := ""
-	if r, ok := claims["role"].(string); ok {
-		role = r
-	}
-
-	// Keycloak fallback
-	if role == "" {
-		if realmAccess, ok := claims["realm_access"].(map[string]interface{}); ok {
-			if roles, ok := realmAccess["roles"].([]interface{}); ok {
-				for _, r := range roles {
-					if r.(string) == "mitra" || r.(string) == "admin" {
-						role = r.(string)
-						break
-					}
-				}
-			}
-		}
-	}
-
-	return userID, role
 }
 
 // UpdateSite godoc

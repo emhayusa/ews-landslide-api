@@ -50,6 +50,7 @@ func SetupRoutes(api fiber.Router, cfg *config.Config, authSvc services.AuthServ
 	stations.Get("/", stationHdl.GetStations)
 	stations.Post("/", stationHdl.CreateStation, middleware.RoleChecker("admin"))
 	stations.Get("/:id", stationHdl.GetStation)
+	stations.Get("/:id/rainfall-history", stationHdl.GetRainfallHistory)
 	stations.Put("/:id", stationHdl.UpdateStation, middleware.RoleChecker("admin"))
 	stations.Delete("/:id", stationHdl.DeleteStation, middleware.RoleChecker("admin"))
 

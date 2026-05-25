@@ -8,11 +8,12 @@ import (
 )
 
 type StationHandler struct {
-	svc services.StationService
+	svc           services.StationService
+	monitoringSvc services.MonitoringService
 }
 
-func NewStationHandler(svc services.StationService) *StationHandler {
-	return &StationHandler{svc}
+func NewStationHandler(svc services.StationService, monitoringSvc services.MonitoringService) *StationHandler {
+	return &StationHandler{svc, monitoringSvc}
 }
 
 // GetStations godoc
@@ -116,4 +117,26 @@ func (h *StationHandler) DeleteStation(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GetRainfallHistory godoc
+// @Summary Get rainfall history for a station
+// @Description Get a list of historical rainfall data for a specific station
+// @Tags Stations
+// @Security ApiKeyAuth
+// @Produce json
+// @Param id path string true "Station ID"
+// @Success 200 {array} dto.RainfallHistoryResponse
+// @Router /v1/stations/{id}/rainfall-history [get]
+func (h *StationHandler) GetRainfallHistory(c *fiber.Ctx) error {
+	id := c.Params("id")
+	history, err := h.hdlGetRainfallHistory(id)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(history)
+}
+
+func (h *StationHandler) hdlGetRainfallHistory(stationID string) ([]dto.RainfallHistoryResponse, error) {
+	return h.monitoringSvc.GetRainfallHistory(stationID, 100)
 }

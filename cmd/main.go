@@ -57,6 +57,7 @@ func main() {
 	stationSvc := services.NewStationService(stationRepo)
 	baseStationSvc := services.NewBaseStationService(baseStationRepo)
 	siteSvc := services.NewSiteService(siteRepo)
+	monitoringSvc := services.NewMonitoringService(monitoringRepo)
 	streamSvc := services.NewStreamService(cfg, monitoringRepo, stationRepo, deformationRepo)
 	
 	// Start Deformation Stream
@@ -65,7 +66,7 @@ func main() {
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authSvc, userRepo)
 	userHandler := handlers.NewUserHandler(userSvc)
-	stationHandler := handlers.NewStationHandler(stationSvc)
+	stationHandler := handlers.NewStationHandler(stationSvc, monitoringSvc)
 	baseStationHandler := handlers.NewBaseStationHandler(baseStationSvc)
 	siteHandler := handlers.NewSiteHandler(siteSvc)
 	streamHandler := handlers.NewStreamHandler(streamSvc)
